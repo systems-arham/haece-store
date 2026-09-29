@@ -11,7 +11,9 @@ customer flow gets tested end to end.
 2. Open the Neon SQL Editor.
 3. Paste the entire contents of `db/schema.sql` and run it.
 4. Paste the entire contents of `db/seed.sql` and run it.
-5. Copy the connection string (Dashboard, Connection Details).
+5. Paste the entire contents of `db/migrations/002-admin-controls.sql` and run it.
+   (Adds the discontinued inventory status and the product image store used by /admin.)
+6. Copy the connection string (Dashboard, Connection Details).
    It looks like `postgresql://user:password@host/dbname?sslmode=require`.
 
 ## 2. Push the code to GitHub (about 3 minutes)

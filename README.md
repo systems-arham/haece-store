@@ -11,6 +11,7 @@ and shipping rates.
    ```
    psql $DATABASE_URL -f db/schema.sql
    psql $DATABASE_URL -f db/seed.sql
+   psql $DATABASE_URL -f db/migrations/002-admin-controls.sql
    ```
 3. Copy `.env.example` to `.env.local` and fill in:
    - `DATABASE_URL`, `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_BASE_URL`

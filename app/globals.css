@@ -88,6 +88,21 @@ button{font-family:inherit;}
 }
 .craft-img{background:var(--card);aspect-ratio:4/5;overflow:hidden;}
 .craft-img img{width:100%;height:100%;object-fit:cover;}
+.fcarousel{position:relative;width:100%;height:100%;overflow:hidden;background:var(--card);}
+.fslide{position:absolute;inset:0;opacity:0;transition:opacity .6s ease;}
+.fslide.on{opacity:1;}
+.farrow{
+  position:absolute;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:#fff;font-size:30px;line-height:1;cursor:pointer;
+  padding:14px 10px;opacity:.8;text-shadow:0 1px 10px rgba(0,0,0,.4);
+}
+.farrow:hover{opacity:1;}
+.farrow.left{left:4px;}
+.farrow.right{right:4px;}
+.fcounter{
+  position:absolute;bottom:14px;left:0;right:0;display:flex;justify-content:center;gap:8px;
+  color:#fff;font-size:11px;letter-spacing:.22em;text-shadow:0 1px 10px rgba(0,0,0,.4);
+}
 .craft-copy .micro{display:block;margin-bottom:16px;}
 .craft-copy h3{
   font-family:var(--font-serif),Georgia,serif;font-weight:400;font-style:italic;

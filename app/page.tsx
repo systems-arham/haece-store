@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import sql, { getContent } from "@/lib/db";
 import ProductCard from "@/components/ProductCard";
+import FounderCarousel from "@/components/FounderCarousel";
 import Newsletter from "@/components/Newsletter";
 
 export const dynamic = "force-dynamic";
@@ -17,17 +18,39 @@ type Product = {
 
 async function dropProducts(code: string): Promise<Product[]> {
   const rows = await sql`
-    SELECT p.id, p.name, p.slug, p.tagline, p.price_cents, p.image
+    SELECT p.id, p.name, p.slug, p.tagline, p.price_cents, p.image,
+           (SELECT '/api/product-image/' || pi.id FROM product_images pi
+            WHERE pi.product_id = p.id AND pi.kind = 'main' ORDER BY pi.id DESC LIMIT 1) AS db_image
     FROM products p
     JOIN collections c ON c.id = p.collection_id
     WHERE c.code = ${code} AND c.visible = true AND p.visible = true
     ORDER BY p.sort
   `;
-  return rows as Product[];
+  return (rows as any[]).map((r) => ({
+    id: r.id, name: r.name, slug: r.slug, tagline: r.tagline,
+    price_cents: r.price_cents, image: r.db_image || r.image,
+  })) as Product[];
+}
+
+async function founderGallery(): Promise<string[]> {
+  const prows = (await sql`SELECT id, image, gallery FROM products WHERE slug = 'founder-coat' LIMIT 1`) as any[];
+  if (!prows.length) return [];
+  const p = prows[0];
+  const irows = (await sql`
+    SELECT id, kind FROM product_images WHERE product_id = ${p.id} ORDER BY kind, sort, id
+  `) as any[];
+  if (irows.length) {
+    const main = irows.find((r) => r.kind === "main");
+    const gal = irows.filter((r) => r.kind === "gallery");
+    return [`/api/product-image/${main.id}`, ...gal.map((r) => `/api/product-image/${r.id}`)];
+  }
+  const g = p.gallery as string[] | null;
+  return g && g.length ? g : [p.image];
 }
 
 export default async function Home() {
   const drop01 = await dropProducts("FW26");
+  const founderImages = await founderGallery();
   const heroCaption = await getContent("hero_caption", "Fall / Winter 2026");
   const drop02Visible = (await getContent("drop02_visible", "false")) === "true";
   const drop02 = drop02Visible ? await dropProducts("SS27") : [];
@@ -62,7 +85,7 @@ export default async function Home() {
 
       <section className="craft" id="craft">
         <div className="craft-img">
-          <Image src="/images/cuff-detail.png" alt="Tailored barrel cuff" width={900} height={1125} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <FounderCarousel images={founderImages} name="The Founder Coat" />
         </div>
         <div className="craft-copy">
           <span className="micro">Craft</span>

@@ -46,6 +46,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const gallery: string[] = p.gallery && p.gallery.length ? p.gallery : [p.image];
 
+  const irows = (await sql`
+    SELECT id, kind FROM product_images WHERE product_id = ${p.id} ORDER BY kind, sort, id
+  `) as any[];
+  const mainDb = irows.find((r) => r.kind === "main");
+  const galDb = irows.filter((r) => r.kind === "gallery");
+  const mainSrc = mainDb ? `/api/product-image/${mainDb.id}` : p.image;
+  const gallerySrcs: string[] = irows.length
+    ? [mainSrc, ...galDb.map((r) => `/api/product-image/${r.id}`)]
+    : gallery;
+
   return (
     <>
       <div className="crumbs">
@@ -58,10 +68,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           description: p.description,
           details: p.details || [],
           priceCents: p.price_cents,
-          image: p.image,
+          image: mainSrc,
           slug,
         }}
-        gallery={gallery}
+        gallery={gallerySrcs}
         variants={variants}
       />
     </>

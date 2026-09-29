@@ -6,3 +6,18 @@
 # Scheduled + serverless functions live here.
 [functions]
   directory = "netlify/functions"
+
+# Force the Next.js adapter: without this, Netlify published the raw
+# .next folder as static files and every route returned its generic 404.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Security headers on every response.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
