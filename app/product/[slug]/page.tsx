@@ -1,0 +1,69 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import sql from "@/lib/db";
+import ProductView from "./ProductView";
+
+export const dynamic = "force-dynamic";
+
+type Variant = { id: number; sku: string; size: string; stock: number };
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const rows = await sql`SELECT name FROM products WHERE slug = ${slug} LIMIT 1`;
+  const name = rows.length ? (rows[0] as { name: string }).name : "Piece";
+  return { title: `${name}, HAECE` };
+}
+
+export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const prows = await sql`
+    SELECT p.id, p.name, p.tagline, p.description, p.details, p.price_cents, p.image, p.gallery,
+           c.name AS collection_name
+    FROM products p
+    JOIN collections c ON c.id = p.collection_id
+    WHERE p.slug = ${slug} AND p.visible = true AND c.visible = true
+    LIMIT 1
+  `;
+  if (!prows.length) notFound();
+  const p = prows[0] as {
+    id: number; name: string; tagline: string; description: string;
+    details: string[]; price_cents: number; image: string; gallery: string[]; collection_name: string;
+  };
+
+  const vrows = await sql`
+    SELECT v.id, v.sku, v.size,
+           (SELECT COUNT(*) FROM inventory_units u WHERE u.variant_id = v.id AND u.status = 'in_stock') AS stock
+    FROM variants v
+    WHERE v.product_id = ${p.id} AND v.visible = true
+    ORDER BY v.sort_order
+  `;
+  const variants = (vrows as Array<{ id: number; sku: string; size: string; stock: string }>).map((v) => ({
+    id: v.id,
+    sku: v.sku,
+    size: v.size,
+    stock: Number(v.stock),
+  })) as Variant[];
+
+  const gallery: string[] = p.gallery && p.gallery.length ? p.gallery : [p.image];
+
+  return (
+    <>
+      <div className="crumbs">
+        <Link href="/drop-01">{p.collection_name}</Link> <span> / </span> <span>{p.name}</span>
+      </div>
+      <ProductView
+        product={{
+          name: p.name,
+          tagline: p.tagline,
+          description: p.description,
+          details: p.details || [],
+          priceCents: p.price_cents,
+          image: p.image,
+          slug,
+        }}
+        gallery={gallery}
+        variants={variants}
+      />
+    </>
+  );
+}

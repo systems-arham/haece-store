@@ -1,0 +1,8 @@
+# Netlify build settings for the Haece store.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# Scheduled + serverless functions live here.
+[functions]
+  directory = "netlify/functions"
