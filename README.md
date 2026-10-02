@@ -1,61 +1,98 @@
-# HAECE, Considered Clothing
+# HAECE, Storefront
 
-Premium founder wear. Next.js storefront, Stripe advance payments, Neon Postgres with serialized
-(numbered edition) inventory. Admin panel controls products, prices, drop visibility, homepage copy,
-and shipping rates.
+Production storefront for HAECE, considered clothing. Next.js 15 storefront with
+Stripe advance payments and Neon Postgres. Every sellable piece is a serialized,
+numbered edition unit; stock is always the live count of `in_stock` units, never
+a typed number.
 
-## Quick start
+## Architecture
 
-1. Create a Neon database at neon.tech, copy the connection string.
-2. Create the schema and seed the catalog:
-   ```
-   psql $DATABASE_URL -f db/schema.sql
-   psql $DATABASE_URL -f db/seed.sql
-   psql $DATABASE_URL -f db/migrations/002-admin-controls.sql
-   ```
-3. Copy `.env.example` to `.env.local` and fill in:
-   - `DATABASE_URL`, `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_BASE_URL`
-   - `ADMIN_PASSWORD`, `ADMIN_SECRET` (any long random string)
-4. `npm install && npm run dev`
+- **Storefront:** Next.js App Router, server components throughout. Mobile-first;
+  every screen size is a release criterion.
+- **Payments:** Stripe Checkout (full advance payment). Webhook-driven order
+  lifecycle, signature-verified and idempotent.
+- **Inventory:** 300 numbered units per variant. Checkout reserves exact units for
+  30 minutes; a scheduled sweeper returns abandoned reservations to stock.
+- **Admin:** `/admin`, cookie session (HMAC-signed, HttpOnly). Orders, fulfillment,
+  reports, inventory, products, private offer codes, content, shipping, customers.
 
-## Stripe webhook
+## Repository layout
 
-- Local: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`
-- Copy the `whsec_...` secret into `STRIPE_WEBHOOK_SECRET`.
-- On Netlify: add a webhook endpoint in the Stripe dashboard pointing at
-  `https://your-domain/api/webhooks/stripe`, event `checkout.session.completed`
-  and `checkout.session.expired`.
+```
+app/                    Storefront and admin pages
+app/api/                Route handlers (checkout, webhooks, admin, lookups)
+components/             Shared UI
+lib/                    db, stripe, auth, copy, formatting
+db/schema.sql           Canonical schema for fresh setups
+db/seed.sql             Drop 01 catalog seed
+db/migrations/         Ordered migrations, run after schema + seed
+db/copy-fixes.sql       One-off product copy corrections
+netlify/functions/      Scheduled reservation sweeper
+netlify.toml            Build, headers, scheduled function
+```
 
-## Deploy on Netlify
+## Configuration
 
-1. Push this folder to a Git repo, import in Netlify (build settings come
-   from `netlify.toml`).
-2. Add all env vars from `.env.example` in the Netlify dashboard
-   (Site settings, Environment variables).
-3. The reservation sweeper runs automatically: `netlify/functions/release-reservations.js`
-   is scheduled every 10 minutes and calls `/api/cron/release-reservations`
-   with `CRON_SECRET`, so abandoned reservations return to stock.
-4. After the first deploy, add the Stripe webhook endpoint (above) and set
-   `STRIPE_WEBHOOK_SECRET`, then redeploy.
+All secrets live in the hosting dashboard, never in git. See `.env.example`
+for the full list.
 
-(Deploying on Vercel instead? `vercel.json` keeps the cron working there too.)
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Neon Postgres connection string |
+| `STRIPE_SECRET_KEY` | Stripe API key (test or live) |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret (`whsec_...`) |
+| `NEXT_PUBLIC_BASE_URL` / `SITE_URL` | Canonical store URL |
+| `ADMIN_PASSWORD` | Admin panel password |
+| `ADMIN_SECRET` | Session signing secret, long random string |
+| `CRON_SECRET` | Bearer token for the reservation sweeper |
 
-## How ordering works
+## Database
 
-1. Customer checks out: an order is created as `pending_payment` and exact serialized
-   units are reserved for 30 minutes.
-2. Stripe collects full advance payment. Failed or abandoned payments never create
-   a real order; reservations expire back to stock automatically.
-3. The webhook marks the order `paid` and flips the reserved units to `sold`.
-4. Stock is always the live count of `in_stock` units, never a typed number.
+Run in order, once per environment:
 
-## Admin
+```
+psql $DATABASE_URL -f db/schema.sql
+psql $DATABASE_URL -f db/seed.sql
+psql $DATABASE_URL -f db/migrations/002-admin-controls.sql
+psql $DATABASE_URL -f db/migrations/003-reports-fulfillment.sql
+```
 
-Visit `/admin` and sign in with `ADMIN_PASSWORD`. Dashboard, orders (with unit
-codes and edition numbers), inventory, products (prices and visibility), content
-(hero caption, announcement, Drop 02 visibility), shipping rates, customers.
+`db/copy-fixes.sql` holds product copy corrections; review before running.
 
-## Prices (locked 2026-09-28)
+## Order lifecycle
 
-Uniform Tee $65, Atlas Vest $110, Onyx Layer $135, Pleated Trouser $150, Founder Coat $195.
-Round numbers, one global USD price. Edit in Admin, Products.
+1. Checkout creates the order as `pending_payment` and reserves exact serialized
+   units for 30 minutes. Unit costs are snapshotted at this point, so later cost
+   edits never rewrite historical profit.
+2. `checkout.session.completed` marks the order `paid` and flips reserved units
+   to `sold`. `checkout.session.expired` releases the reservation.
+3. Fulfillment moves paid orders through confirmed, shipped, in transit,
+   delivered. Tracking numbers are visible to the client in Find Your Order.
+4. Refunds run through Stripe from the order page; units return to stock and the
+   order is marked refunded. Deleted orders restock first, then are removed.
+
+## Admin capabilities
+
+Dashboard, orders (pagination, per-row status, print list, CSV export, counter
+reset), order detail (tracking, refund, delete with history export), monthly
+revenue and profit reports with per-product breakdown, inventory sell-out and
+restock per size, product pricing and production costs, photography uploads,
+private offer codes (percent-off, Stripe-backed), editable customer-facing copy,
+shipping rates, customer list.
+
+## Deployment (Netlify)
+
+Build settings come from `netlify.toml`. Set every variable from `.env.example`
+in Site settings, Environment variables. The reservation sweeper
+(`netlify/functions/release-reservations.js`) runs every 10 minutes against
+`/api/cron/release-reservations` with `CRON_SECRET`.
+
+After the first deploy: create the Stripe webhook endpoint for
+`checkout.session.completed` and `checkout.session.expired`, set
+`STRIPE_WEBHOOK_SECRET`, redeploy. Local webhook testing:
+`stripe listen --forward-to localhost:3000/api/webhooks/stripe`.
+
+## Catalog
+
+Drop 01 (FW26). Pricing is managed in Admin, Products. Sizes M to XL.
+Small is never manufactured.

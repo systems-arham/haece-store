@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import sql, { getContent } from "@/lib/db";
+import { usd } from "@/lib/format";
 import ProductCard from "@/components/ProductCard";
 import FounderCarousel from "@/components/FounderCarousel";
 import Newsletter from "@/components/Newsletter";
@@ -48,9 +49,30 @@ async function founderGallery(): Promise<string[]> {
   return g && g.length ? g : [p.image];
 }
 
+async function founderFeature() {
+  const rows = (await sql`
+    SELECT p.name, p.slug, p.tagline, p.price_cents, p.preorder, p.preorder_note,
+           (SELECT '/api/product-image/' || pi.id FROM product_images pi
+            WHERE pi.product_id = p.id AND pi.kind = 'main' ORDER BY pi.id DESC LIMIT 1) AS db_image,
+           p.image AS fallback_image
+    FROM products p
+    WHERE p.slug = 'founder-coat' AND p.visible = true
+    LIMIT 1
+  `) as any[];
+  if (!rows.length) return null;
+  const r = rows[0];
+  return {
+    name: r.name, slug: r.slug, tagline: r.tagline,
+    price_cents: Number(r.price_cents),
+    preorder: Boolean(r.preorder), preorder_note: r.preorder_note as string | null,
+    image: r.db_image || r.fallback_image,
+  };
+}
+
 export default async function Home() {
   const drop01 = await dropProducts("FW26");
   const founderImages = await founderGallery();
+  const founder = await founderFeature();
   const heroCaption = await getContent("hero_caption", "Fall / Winter 2026");
   const drop02Visible = (await getContent("drop02_visible", "false")) === "true";
   const drop02 = drop02Visible ? await dropProducts("SS27") : [];
@@ -63,6 +85,33 @@ export default async function Home() {
           <span className="micro">{heroCaption}</span>
         </div>
       </section>
+
+      {founder && (
+        <section className="founder-feature" id="founder-coat">
+          <div className="founder-img">
+            <Link href={`/product/${founder.slug}`}>
+              <Image src={founder.image} alt={founder.name} width={900} height={1125} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </Link>
+          </div>
+          <div className="founder-copy">
+            <span className="micro">01</span>
+            <h2>{founder.name}</h2>
+            <p className="tagline">{founder.tagline}</p>
+            {founder.preorder && (
+              <p style={{ margin: "14px 0" }}>
+                <span className="badge pending">Pre-order</span>
+                {founder.preorder_note && (
+                  <span style={{ fontSize: 13, color: "var(--muted)", marginLeft: 10 }}>{founder.preorder_note}</span>
+                )}
+              </p>
+            )}
+            <p className="price">{usd(founder.price_cents)}</p>
+            <Link href={`/product/${founder.slug}`} className="btn-dark" style={{ marginTop: 18, display: "inline-block", textDecoration: "none" }}>
+              View the coat
+            </Link>
+          </div>
+        </section>
+      )}
 
       <section className="statement">
         <p className="micro">The House</p>

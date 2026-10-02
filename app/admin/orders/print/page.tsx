@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function OrdersPrint() {
   const orders = (await sql`
     SELECT id, order_number, email, name, subtotal_cents, discount_cents, shipping_cents,
-           total_cents, status, tracking_number, offer_code, created_at
+           total_cents, status, tracking_number, offer_code, created_at, shipping_address
     FROM orders
     ORDER BY id DESC
     LIMIT 500
@@ -48,6 +48,14 @@ export default async function OrdersPrint() {
             {" "}· {o.status.replace(/_/g, " ")}
             {o.tracking_number ? ` · Tracking ${o.tracking_number}` : ""}
           </p>
+          {o.shipping_address && (
+            <p style={{ fontSize: 13, color: "var(--muted)" }}>
+              Ship to: {o.shipping_address.name ? `${o.shipping_address.name}, ` : ""}
+              {o.shipping_address.line1 || ""} {o.shipping_address.line2 || ""},{" "}
+              {o.shipping_address.city || ""} {o.shipping_address.postal_code || ""},{" "}
+              {o.shipping_address.country || ""}
+            </p>
+          )}
           <table className="data" style={{ marginTop: 8 }}>
             <thead>
               <tr><th>Product</th><th>Size</th><th>SKU</th><th>Price</th></tr>

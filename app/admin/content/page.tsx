@@ -36,13 +36,16 @@ async function saveContent(formData: FormData) {
     INSERT INTO site_content (key, value, updated_at) VALUES ('drop02_visible', ${drop02}, now())
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
   `;
+  // The collection row is the real switch the storefront reads.
+  await sql`UPDATE collections SET visible = ${drop02 === "true"} WHERE code = 'SS27'`;
   revalidatePath("/", "layout");
 }
 
 export default async function AdminContent() {
   const rows = await sql`SELECT key, value FROM site_content`;
   const map = Object.fromEntries((rows as any[]).map((r) => [r.key, r.value]));
-  const drop02 = map["drop02_visible"] === "true";
+  const crows = (await sql`SELECT visible FROM collections WHERE code = 'SS27' LIMIT 1`) as any[];
+  const drop02 = crows.length ? Boolean(crows[0].visible) : map["drop02_visible"] === "true";
 
   return (
     <>

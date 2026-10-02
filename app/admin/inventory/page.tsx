@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import sql from "@/lib/db";
 
@@ -9,21 +10,30 @@ async function setSizeStatus(formData: FormData) {
   const to = String(formData.get("to"));
   if (!variantId || (to !== "discontinued" && to !== "in_stock")) return;
   const from = to === "discontinued" ? "in_stock" : "discontinued";
-  const units = (await sql`
-    SELECT id FROM inventory_units WHERE variant_id = ${variantId} AND status = ${from}
-  `) as any[];
-  for (const u of units) {
-    await sql`INSERT INTO inventory_movements (unit_id, from_status, to_status) VALUES (${u.id}, ${from}, ${to})`;
+  try {
+    const units = (await sql`
+      SELECT id FROM inventory_units WHERE variant_id = ${variantId} AND status = ${from}
+    `) as any[];
+    for (const u of units) {
+      await sql`INSERT INTO inventory_movements (unit_id, from_status, to_status) VALUES (${u.id}, ${from}, ${to})`;
+    }
+    await sql`
+      UPDATE inventory_units
+      SET status = ${to}, reserved_until = NULL, order_id = NULL
+      WHERE variant_id = ${variantId} AND status = ${from}
+    `;
+  } catch (e) {
+    redirect("/admin/inventory?sellout=failed");
   }
-  await sql`
-    UPDATE inventory_units
-    SET status = ${to}, reserved_until = NULL, order_id = NULL
-    WHERE variant_id = ${variantId} AND status = ${from}
-  `;
   revalidatePath("/admin/inventory");
 }
 
-export default async function AdminInventory() {
+export default async function AdminInventory({
+  searchParams,
+}: {
+  searchParams: Promise<{ sellout?: string }>;
+}) {
+  const sp = await searchParams;
   const rows = (await sql`
     SELECT v.id AS variant_id, p.name AS product, v.size, v.sku,
            COUNT(u.id) FILTER (WHERE u.status='in_stock') AS in_stock,
@@ -43,6 +53,12 @@ export default async function AdminInventory() {
         Serialized units. Stock is always the count of in stock units, never a typed number.
         Sell out removes a size from sale (units become discontinued). Restock brings them back.
       </p>
+      {sp.sellout === "failed" && (
+        <div className="panel"><div className="panel-body" style={{ color: "var(--bad)", fontSize: 14 }}>
+          Sell out failed. The database is missing the discontinued status. Run
+          db/migrations/002-admin-controls.sql in the Neon SQL editor, then try again.
+        </div></div>
+      )}
       <div className="panel">
         <table className="data">
           <thead>

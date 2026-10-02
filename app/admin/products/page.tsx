@@ -33,6 +33,23 @@ async function setCost(formData: FormData) {
   revalidatePath("/admin/products");
 }
 
+async function togglePreorder(id: number, preorder: boolean) {
+  "use server";
+  await sql`UPDATE products SET preorder = ${!preorder} WHERE id = ${id}`;
+  revalidatePath("/admin/products");
+  revalidatePath("/", "layout");
+}
+
+async function setPreorderNote(formData: FormData) {
+  "use server";
+  const id = Number(formData.get("id"));
+  const note = String(formData.get("note") || "").trim() || null;
+  if (!id) return;
+  await sql`UPDATE products SET preorder_note = ${note} WHERE id = ${id}`;
+  revalidatePath("/admin/products");
+  revalidatePath("/", "layout");
+}
+
 async function uploadImage(formData: FormData) {
   "use server";
   const productId = Number(formData.get("product_id"));
@@ -68,7 +85,7 @@ type DbImage = { id: number; product_id: number; kind: string };
 
 export default async function AdminProducts() {
   const rows = (await sql`
-    SELECT p.id, p.name, p.slug, p.image, p.price_cents, p.cost_cents, p.visible, c.code AS collection, c.visible AS collection_visible,
+    SELECT p.id, p.name, p.slug, p.image, p.price_cents, p.cost_cents, p.preorder, p.preorder_note, p.visible, c.code AS collection, c.visible AS collection_visible,
            (SELECT COUNT(*) FROM inventory_units u JOIN variants v ON v.id = u.variant_id
             WHERE v.product_id = p.id AND u.status = 'in_stock') AS stock
     FROM products p
@@ -142,6 +159,43 @@ export default async function AdminProducts() {
                 <td>
                   <form action={toggleVisible.bind(null, p.id, p.visible)}>
                     <button className={`toggle${p.visible ? " on" : ""}`} aria-label="Toggle visibility" />
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h1 style={{ marginTop: 40 }}>Pre-orders</h1>
+      <p className="admin-sub">
+        Mark a product as pre-order and the product page shows a Pre-order badge with your note,
+        and the button reads "Pre-order" instead of "Add to bag". Orders work exactly the same.
+      </p>
+      <div className="panel">
+        <table className="data">
+          <thead>
+            <tr><th>Product</th><th>Pre-order</th><th>Note</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((p) => (
+              <tr key={p.id}>
+                <td><strong>{p.name}</strong><br /><span style={{ color: "var(--muted)", fontSize: 12 }}>{p.slug}</span></td>
+                <td>
+                  <form action={togglePreorder.bind(null, p.id, p.preorder)}>
+                    <button className={`toggle${p.preorder ? " on" : ""}`} aria-label="Toggle pre-order" />
+                  </form>
+                </td>
+                <td>
+                  <form action={setPreorderNote} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <input
+                      name="note"
+                      defaultValue={p.preorder_note || ""}
+                      placeholder="Shipping November 1"
+                      style={{ flex: 1, minWidth: 180, padding: "8px 10px", border: "1px solid var(--hairline)", fontSize: 13 }}
+                    />
+                    <button className="mini-btn">Set</button>
                   </form>
                 </td>
               </tr>

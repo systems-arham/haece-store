@@ -348,6 +348,7 @@ table.data tr:hover td{background:rgba(0,0,0,0.015);}
   .statement{padding:70px 20px;}
   .drop{padding:10px 20px 60px;}
   .craft{grid-template-columns:1fr;gap:36px;padding:60px 20px;}
+  .founder-feature{grid-template-columns:1fr;gap:36px;padding:60px 20px;}
   .services{grid-template-columns:1fr;gap:28px;padding:44px 20px;}
   .newsletter{padding:60px 20px;}
   .footer-inner{grid-template-columns:1fr 1fr;padding:50px 20px 30px;}
@@ -374,3 +375,14 @@ table.data tr:hover td{background:rgba(0,0,0,0.015);}
   .print-sheet h1{font-size:22px;}
   body{background:#fff;}
 }
+
+/* Founder Coat feature, directly below the hero */
+.founder-feature{
+  max-width:1440px;margin:0 auto;padding:90px 40px;
+  display:grid;grid-template-columns:1.1fr 1fr;gap:70px;align-items:center;
+}
+.founder-img{background:var(--card);aspect-ratio:4/5;overflow:hidden;}
+.founder-copy .micro{display:block;margin-bottom:16px;}
+.founder-copy h2{font-size:34px;font-weight:500;margin:0 0 10px;letter-spacing:-0.01em;}
+.founder-copy .tagline{color:var(--muted);font-size:15px;margin:0 0 6px;}
+.founder-copy .price{font-size:18px;margin:10px 0 0;}

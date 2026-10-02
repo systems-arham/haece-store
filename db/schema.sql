@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS products (
   details jsonb DEFAULT '[]',
   price_cents int NOT NULL,
   cost_cents int,
+  preorder boolean NOT NULL DEFAULT false,
+  preorder_note text,
   image text,
   gallery jsonb DEFAULT '[]',
   visible boolean DEFAULT true,

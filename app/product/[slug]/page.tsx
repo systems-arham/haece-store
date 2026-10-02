@@ -18,6 +18,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const prows = await sql`
     SELECT p.id, p.name, p.tagline, p.description, p.details, p.price_cents, p.image, p.gallery,
+           p.preorder, p.preorder_note,
            c.name AS collection_name
     FROM products p
     JOIN collections c ON c.id = p.collection_id
@@ -28,6 +29,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const p = prows[0] as {
     id: number; name: string; tagline: string; description: string;
     details: string[]; price_cents: number; image: string; gallery: string[]; collection_name: string;
+    preorder: boolean; preorder_note: string | null;
   };
 
   const vrows = await sql`
@@ -70,6 +72,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           priceCents: p.price_cents,
           image: mainSrc,
           slug,
+          preorder: p.preorder,
+          preorderNote: p.preorder_note,
         }}
         gallery={gallerySrcs}
         variants={variants}

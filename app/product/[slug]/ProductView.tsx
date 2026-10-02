@@ -21,6 +21,8 @@ export default function ProductView({
     priceCents: number;
     image: string;
     slug: string;
+    preorder: boolean;
+    preorderNote: string | null;
   };
   gallery: string[];
   variants: Variant[];
@@ -77,6 +79,14 @@ export default function ProductView({
       <div className="product-info">
         <span className="micro">Drop 01</span>
         <h1>{product.name}</h1>
+        {product.preorder && (
+          <p style={{ marginTop: 10 }}>
+            <span className="badge pending">Pre-order</span>
+            {product.preorderNote && (
+              <span style={{ fontSize: 13, color: "var(--muted)", marginLeft: 10 }}>{product.preorderNote}</span>
+            )}
+          </p>
+        )}
         <p className="tagline">{product.tagline}</p>
         <p className="price">{usd(product.priceCents)}</p>
         <p className="desc">{product.description}</p>
@@ -99,7 +109,7 @@ export default function ProductView({
         </div>
 
         <button className="add-bag" disabled={!selected || selected.stock === 0 || soldOut} onClick={addToBag}>
-          {soldOut ? "Sold out" : added ? "Added to bag" : selected ? `Add to bag, ${usd(product.priceCents)}` : "Select a size"}
+          {soldOut ? "Sold out" : added ? "Added to bag" : selected ? `${product.preorder ? "Pre-order" : "Add to bag"}, ${usd(product.priceCents)}` : "Select a size"}
         </button>
         {!soldOut && (
           <p className="edition-note">
