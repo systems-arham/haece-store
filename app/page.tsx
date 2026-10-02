@@ -5,6 +5,7 @@ import { usd } from "@/lib/format";
 import ProductCard from "@/components/ProductCard";
 import FounderCarousel from "@/components/FounderCarousel";
 import Newsletter from "@/components/Newsletter";
+import { storefrontFeatures } from "@/lib/storefront";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +19,25 @@ type Product = {
 };
 
 async function dropProducts(code: string): Promise<Product[]> {
-  const rows = await sql`
-    SELECT p.id, p.name, p.slug, p.tagline, p.price_cents, p.image,
-           (SELECT '/api/product-image/' || pi.id FROM product_images pi
-            WHERE pi.product_id = p.id AND pi.kind = 'main' ORDER BY pi.id DESC LIMIT 1) AS db_image
-    FROM products p
-    JOIN collections c ON c.id = p.collection_id
-    WHERE c.code = ${code} AND c.visible = true AND p.visible = true
-    ORDER BY p.sort
-  `;
+  const f = await storefrontFeatures();
+  const rows = f.images
+    ? await sql`
+      SELECT p.id, p.name, p.slug, p.tagline, p.price_cents, p.image,
+             (SELECT '/api/product-image/' || pi.id FROM product_images pi
+              WHERE pi.product_id = p.id AND pi.kind = 'main' ORDER BY pi.id DESC LIMIT 1) AS db_image
+      FROM products p
+      JOIN collections c ON c.id = p.collection_id
+      WHERE c.code = ${code} AND c.visible = true AND p.visible = true
+      ORDER BY p.sort
+    `
+    : await sql`
+      SELECT p.id, p.name, p.slug, p.tagline, p.price_cents, p.image,
+             NULL AS db_image
+      FROM products p
+      JOIN collections c ON c.id = p.collection_id
+      WHERE c.code = ${code} AND c.visible = true AND p.visible = true
+      ORDER BY p.sort
+    `;
   return (rows as any[]).map((r) => ({
     id: r.id, name: r.name, slug: r.slug, tagline: r.tagline,
     price_cents: r.price_cents, image: r.db_image || r.image,
@@ -37,9 +48,12 @@ async function founderGallery(): Promise<string[]> {
   const prows = (await sql`SELECT id, image, gallery FROM products WHERE slug = 'founder-coat' LIMIT 1`) as any[];
   if (!prows.length) return [];
   const p = prows[0];
-  const irows = (await sql`
-    SELECT id, kind FROM product_images WHERE product_id = ${p.id} ORDER BY kind, sort, id
-  `) as any[];
+  const f = await storefrontFeatures();
+  const irows = f.images
+    ? ((await sql`
+      SELECT id, kind FROM product_images WHERE product_id = ${p.id} ORDER BY kind, sort, id
+    `) as any[])
+    : [];
   if (irows.length) {
     const main = irows.find((r) => r.kind === "main");
     const gal = irows.filter((r) => r.kind === "gallery");
@@ -50,15 +64,26 @@ async function founderGallery(): Promise<string[]> {
 }
 
 async function founderFeature() {
-  const rows = (await sql`
-    SELECT p.name, p.slug, p.tagline, p.price_cents, p.preorder, p.preorder_note,
-           (SELECT '/api/product-image/' || pi.id FROM product_images pi
-            WHERE pi.product_id = p.id AND pi.kind = 'main' ORDER BY pi.id DESC LIMIT 1) AS db_image,
-           p.image AS fallback_image
-    FROM products p
-    WHERE p.slug = 'founder-coat' AND p.visible = true
-    LIMIT 1
-  `) as any[];
+  const f = await storefrontFeatures();
+  const rows = (await (f.preorder
+    ? sql`
+      SELECT p.name, p.slug, p.tagline, p.price_cents, p.preorder, p.preorder_note,
+             (SELECT '/api/product-image/' || pi.id FROM product_images pi
+              WHERE pi.product_id = p.id AND pi.kind = 'main' ORDER BY pi.id DESC LIMIT 1) AS db_image,
+             p.image AS fallback_image
+      FROM products p
+      WHERE p.slug = 'founder-coat' AND p.visible = true
+      LIMIT 1
+    `
+    : sql`
+      SELECT p.name, p.slug, p.tagline, p.price_cents,
+             NULL AS preorder, NULL AS preorder_note,
+             NULL AS db_image,
+             p.image AS fallback_image
+      FROM products p
+      WHERE p.slug = 'founder-coat' AND p.visible = true
+      LIMIT 1
+    `)) as any[];
   if (!rows.length) return null;
   const r = rows[0];
   return {

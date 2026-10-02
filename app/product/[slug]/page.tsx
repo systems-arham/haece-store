@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import sql from "@/lib/db";
 import ProductView from "./ProductView";
+import { storefrontFeatures } from "@/lib/storefront";
 
 export const dynamic = "force-dynamic";
 
@@ -16,15 +17,26 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const prows = await sql`
-    SELECT p.id, p.name, p.tagline, p.description, p.details, p.price_cents, p.image, p.gallery,
-           p.preorder, p.preorder_note,
-           c.name AS collection_name
-    FROM products p
-    JOIN collections c ON c.id = p.collection_id
-    WHERE p.slug = ${slug} AND p.visible = true AND c.visible = true
-    LIMIT 1
-  `;
+  const f = await storefrontFeatures();
+  const prows = await (f.preorder
+    ? sql`
+      SELECT p.id, p.name, p.tagline, p.description, p.details, p.price_cents, p.image, p.gallery,
+             p.preorder, p.preorder_note,
+             c.name AS collection_name
+      FROM products p
+      JOIN collections c ON c.id = p.collection_id
+      WHERE p.slug = ${slug} AND p.visible = true AND c.visible = true
+      LIMIT 1
+    `
+    : sql`
+      SELECT p.id, p.name, p.tagline, p.description, p.details, p.price_cents, p.image, p.gallery,
+             NULL AS preorder, NULL AS preorder_note,
+             c.name AS collection_name
+      FROM products p
+      JOIN collections c ON c.id = p.collection_id
+      WHERE p.slug = ${slug} AND p.visible = true AND c.visible = true
+      LIMIT 1
+    `);
   if (!prows.length) notFound();
   const p = prows[0] as {
     id: number; name: string; tagline: string; description: string;
@@ -48,9 +60,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const gallery: string[] = p.gallery && p.gallery.length ? p.gallery : [p.image];
 
-  const irows = (await sql`
-    SELECT id, kind FROM product_images WHERE product_id = ${p.id} ORDER BY kind, sort, id
-  `) as any[];
+  const irows = f.images
+    ? ((await sql`
+      SELECT id, kind FROM product_images WHERE product_id = ${p.id} ORDER BY kind, sort, id
+    `) as any[])
+    : [];
   const mainDb = irows.find((r) => r.kind === "main");
   const galDb = irows.filter((r) => r.kind === "gallery");
   const mainSrc = mainDb ? `/api/product-image/${mainDb.id}` : p.image;
