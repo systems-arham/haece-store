@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import sql from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { usd, editionLabel } from "@/lib/format";
+import { adminBasePath } from "@/lib/admin-path";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ async function refundOrder(formData: FormData) {
     await stripe.refunds.create({ payment_intent: pi });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Refund failed.";
-    redirect(`/admin/orders/${orderNumber}?refund=failed&msg=${encodeURIComponent(msg)}`);
+    redirect(`${adminBasePath()}/orders/${orderNumber}?refund=failed&msg=${encodeURIComponent(msg)}`);
   }
   const units = (await sql`SELECT id, status FROM inventory_units WHERE order_id = ${o.id} AND status IN ('sold','reserved')`) as any[];
   for (const u of units) {
@@ -60,7 +61,7 @@ async function refundOrder(formData: FormData) {
   revalidatePath(`/admin/orders/${orderNumber}`);
   revalidatePath("/admin/orders");
   revalidatePath("/admin");
-  redirect(`/admin/orders/${orderNumber}?refund=done`);
+  redirect(`${adminBasePath()}/orders/${orderNumber}?refund=done`);
 }
 
 async function deleteOrder(formData: FormData) {
@@ -78,7 +79,7 @@ async function deleteOrder(formData: FormData) {
   await sql`DELETE FROM orders WHERE id = ${orderId}`;
   revalidatePath("/admin/orders");
   revalidatePath("/admin");
-  redirect("/admin/orders");
+  redirect(adminBasePath() + "/orders");
 }
 
 export default async function OrderDetail({
@@ -107,7 +108,7 @@ export default async function OrderDetail({
   return (
     <>
       <p style={{ marginBottom: 16 }}>
-        <Link href="/admin/orders" style={{ fontSize: 13, color: "var(--muted)" }}>Back to orders</Link>
+        <Link href={adminBasePath() + "/orders"} style={{ fontSize: 13, color: "var(--muted)" }}>Back to orders</Link>
       </p>
       <h1>{o.order_number}</h1>
       <p className="admin-sub">

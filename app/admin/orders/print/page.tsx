@@ -2,6 +2,7 @@ import Link from "next/link";
 import sql from "@/lib/db";
 import { usd } from "@/lib/format";
 import PrintButton from "@/components/PrintButton";
+import { adminBasePath } from "@/lib/admin-path";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export default async function OrdersPrint() {
   return (
     <div className="print-sheet">
       <p className="no-print" style={{ marginBottom: 16 }}>
-        <Link href="/admin/orders" style={{ fontSize: 13, color: "var(--muted)" }}>Back to orders</Link>
+        <Link href={adminBasePath() + "/orders"} style={{ fontSize: 13, color: "var(--muted)" }}>Back to orders</Link>
       </p>
       <h1>HAECE, Orders</h1>
       <p className="admin-sub">

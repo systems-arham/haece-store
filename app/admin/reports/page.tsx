@@ -1,6 +1,7 @@
 import Link from "next/link";
 import sql from "@/lib/db";
 import { usd } from "@/lib/format";
+import { adminBasePath } from "@/lib/admin-path";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +97,7 @@ export default async function AdminReports({
       {missingCosts > 0 && (
         <div className="panel"><div className="panel-body" style={{ color: "var(--warn)", fontSize: 14 }}>
           {missingCosts} sold {missingCosts === 1 ? "piece has" : "pieces have"} no production cost recorded.
-          Set the cost per piece on the <Link href="/admin/products" style={{ textDecoration: "underline" }}>Products</Link> page
+          Set the cost per piece on the <Link href={adminBasePath() + "/products"} style={{ textDecoration: "underline" }}>Products</Link> page
           for complete profit figures. New sales snapshot the cost automatically.
         </div></div>
       )}

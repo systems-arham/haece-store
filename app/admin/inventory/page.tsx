@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import sql from "@/lib/db";
+import { adminBasePath } from "@/lib/admin-path";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ async function setSizeStatus(formData: FormData) {
       WHERE variant_id = ${variantId} AND status = ${from}
     `;
   } catch (e) {
-    redirect("/admin/inventory?sellout=failed");
+    redirect(adminBasePath() + "/inventory?sellout=failed");
   }
   revalidatePath("/admin/inventory");
 }

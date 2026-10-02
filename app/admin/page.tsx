@@ -1,6 +1,7 @@
 import Link from "next/link";
 import sql from "@/lib/db";
 import { usd } from "@/lib/format";
+import { adminBasePath } from "@/lib/admin-path";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,7 @@ export default async function AdminDashboard() {
       <div className="panel">
         <div className="panel-head">
           <h2>Recent orders</h2>
-          <Link href="/admin/orders" className="mini-btn">All orders</Link>
+          <Link href={adminBasePath() + "/orders"} className="mini-btn">All orders</Link>
         </div>
         <table className="data">
           <thead>

@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import sql from "@/lib/db";
 import { usd } from "@/lib/format";
+import { adminBasePath } from "@/lib/admin-path";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ async function setStatus(formData: FormData) {
   if (!orderNumber || !(FULFILLMENT as readonly string[]).includes(status)) return;
   await sql`UPDATE orders SET status = ${status} WHERE order_number = ${orderNumber}`;
   revalidatePath("/admin/orders");
-  redirect(`/admin/orders?page=${page}`);
+  redirect(`${adminBasePath()}/orders?page=${page}`);
 }
 
 async function resetCounter() {
@@ -73,7 +74,7 @@ export default async function AdminOrders({
       </p>
 
       <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        <Link href="/admin/orders/print" className="mini-btn" style={{ textDecoration: "none", padding: "9px 14px" }}>
+        <Link href={adminBasePath() + "/orders/print"} className="mini-btn" style={{ textDecoration: "none", padding: "9px 14px" }}>
           Print list
         </Link>
         <a href="/api/admin/orders/export" className="mini-btn" style={{ textDecoration: "none", padding: "9px 14px" }}>
