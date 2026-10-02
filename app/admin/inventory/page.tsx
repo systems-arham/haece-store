@@ -5,26 +5,56 @@ import { adminBasePath } from "@/lib/admin-path";
 
 export const dynamic = "force-dynamic";
 
-async function setSizeStatus(formData: FormData) {
+// Set the exact number of in stock units for a size. Lowering moves units
+// off sale (discontinued); raising brings off sale units back. Sold and
+// reserved units are never touched, and no new serials are ever minted,
+// so the edition numbering stays intact.
+async function setStock(formData: FormData) {
   "use server";
   const variantId = Number(formData.get("variant_id"));
-  const to = String(formData.get("to"));
-  if (!variantId || (to !== "discontinued" && to !== "in_stock")) return;
-  const from = to === "discontinued" ? "in_stock" : "discontinued";
+  const rawTarget = Number(formData.get("target"));
+  if (!variantId || !Number.isFinite(rawTarget)) return;
   try {
-    const units = (await sql`
-      SELECT id FROM inventory_units WHERE variant_id = ${variantId} AND status = ${from}
+    const counts = (await sql`
+      SELECT COUNT(*) FILTER (WHERE status = 'in_stock') AS in_stock,
+             COUNT(*) FILTER (WHERE status = 'discontinued') AS discontinued
+      FROM inventory_units WHERE variant_id = ${variantId}
     `) as any[];
-    for (const u of units) {
-      await sql`INSERT INTO inventory_movements (unit_id, from_status, to_status) VALUES (${u.id}, ${from}, ${to})`;
+    const cur = Number(counts[0]?.in_stock || 0);
+    const disc = Number(counts[0]?.discontinued || 0);
+    const target = Math.min(Math.max(0, Math.floor(rawTarget)), cur + disc);
+    if (target === cur) return;
+    if (target < cur) {
+      const n = cur - target;
+      await sql`
+        INSERT INTO inventory_movements (unit_id, from_status, to_status)
+        SELECT id, 'in_stock', 'discontinued' FROM inventory_units
+        WHERE variant_id = ${variantId} AND status = 'in_stock'
+        ORDER BY id DESC LIMIT ${n}`;
+      await sql`
+        UPDATE inventory_units SET status = 'discontinued', reserved_until = NULL, order_id = NULL
+        WHERE id IN (
+          SELECT id FROM inventory_units
+          WHERE variant_id = ${variantId} AND status = 'in_stock'
+          ORDER BY id DESC LIMIT ${n}
+        )`;
+    } else {
+      const n = target - cur;
+      await sql`
+        INSERT INTO inventory_movements (unit_id, from_status, to_status)
+        SELECT id, 'discontinued', 'in_stock' FROM inventory_units
+        WHERE variant_id = ${variantId} AND status = 'discontinued'
+        ORDER BY id LIMIT ${n}`;
+      await sql`
+        UPDATE inventory_units SET status = 'in_stock'
+        WHERE id IN (
+          SELECT id FROM inventory_units
+          WHERE variant_id = ${variantId} AND status = 'discontinued'
+          ORDER BY id LIMIT ${n}
+        )`;
     }
-    await sql`
-      UPDATE inventory_units
-      SET status = ${to}, reserved_until = NULL, order_id = NULL
-      WHERE variant_id = ${variantId} AND status = ${from}
-    `;
   } catch (e) {
-    redirect(adminBasePath() + "/inventory?sellout=failed");
+    redirect(adminBasePath() + "/inventory?stock=failed");
   }
   revalidatePath("/admin/inventory");
 }
@@ -32,7 +62,7 @@ async function setSizeStatus(formData: FormData) {
 export default async function AdminInventory({
   searchParams,
 }: {
-  searchParams: Promise<{ sellout?: string }>;
+  searchParams: Promise<{ stock?: string }>;
 }) {
   const sp = await searchParams;
   const rows = (await sql`
@@ -51,19 +81,20 @@ export default async function AdminInventory({
     <>
       <h1>Inventory</h1>
       <p className="admin-sub">
-        Serialized units. Stock is always the count of in stock units, never a typed number.
-        Sell out removes a size from sale (units become discontinued). Restock brings them back.
+        Serialized units. Type the exact number of in stock units per size and press Set.
+        Lowering the number moves units off sale; raising it brings off sale units back.
+        Sold and reserved units are never touched.
       </p>
-      {sp.sellout === "failed" && (
+      {sp.stock === "failed" && (
         <div className="panel"><div className="panel-body" style={{ color: "var(--bad)", fontSize: 14 }}>
-          Sell out failed. The database is missing the discontinued status. Run
+          Stock update failed. The database is missing the discontinued status. Run
           db/migrations/002-admin-controls.sql in the Neon SQL editor, then try again.
         </div></div>
       )}
       <div className="panel">
         <table className="data">
           <thead>
-            <tr><th>Product</th><th>Size</th><th>SKU</th><th>In stock</th><th>Reserved</th><th>Sold</th><th>Off sale</th><th></th></tr>
+            <tr><th>Product</th><th>Size</th><th>SKU</th><th>In stock</th><th>Reserved</th><th>Sold</th><th>Off sale</th><th>Set stock</th></tr>
           </thead>
           <tbody>
             {rows.map((r) => {
@@ -82,21 +113,21 @@ export default async function AdminInventory({
                   <td>{r.reserved}</td>
                   <td>{r.sold}</td>
                   <td>{r.discontinued}</td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    {inStock > 0 && (
-                      <form action={setSizeStatus} style={{ display: "inline" }}>
-                        <input type="hidden" name="variant_id" value={r.variant_id} />
-                        <input type="hidden" name="to" value="discontinued" />
-                        <button className="mini-btn" title="Remove this size from sale">Sell out</button>
-                      </form>
-                    )}
-                    {off > 0 && (
-                      <form action={setSizeStatus} style={{ display: "inline", marginLeft: 6 }}>
-                        <input type="hidden" name="variant_id" value={r.variant_id} />
-                        <input type="hidden" name="to" value="in_stock" />
-                        <button className="mini-btn" title="Put this size back on sale">Restock</button>
-                      </form>
-                    )}
+                  <td>
+                    <form action={setStock} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input type="hidden" name="variant_id" value={r.variant_id} />
+                      <input
+                        name="target"
+                        type="number"
+                        min={0}
+                        max={inStock + off}
+                        step={1}
+                        defaultValue={inStock}
+                        title={`Set in stock units (0 to ${inStock + off})`}
+                        style={{ width: 80, padding: "8px 10px", border: "1px solid var(--hairline)", fontSize: 13 }}
+                      />
+                      <button className="mini-btn">Set</button>
+                    </form>
                   </td>
                 </tr>
               );
