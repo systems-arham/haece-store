@@ -34,7 +34,7 @@ export default function Header({ announcement }: { announcement: string }) {
           ))}
         </nav>
         <Link href="/" className="wordmark">
-          HAECE
+          haece.
         </Link>
         <nav className="nav-right">
           <Link href="/track-order" className="hide-m">

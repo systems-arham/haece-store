@@ -5,7 +5,7 @@ export default function Footer() {
     <footer>
       <div className="footer-inner">
         <div className="footer-brand">
-          <span className="wordmark">HAECE</span>
+          <span className="wordmark">haece.</span>
           <p>Premium founder wear. Designed slowly, made properly, shipped worldwide.</p>
         </div>
         <div className="footer-col">
@@ -27,7 +27,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="footer-bottom">
-        <span>HAECE, 2026. All rights reserved.</span>
+        <span>haece., 2026. All rights reserved.</span>
         <div className="legal">
           <Link href="/terms">Terms</Link>
           <Link href="/privacy">Privacy</Link>

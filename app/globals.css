@@ -40,7 +40,7 @@ button{font-family:inherit;}
 .nav-right{justify-content:flex-end;}
 .nav-left a,.nav-right a{font-size:11px;letter-spacing:0.16em;text-transform:uppercase;font-weight:500;color:var(--ink);}
 .nav-left a:hover,.nav-right a:hover{color:var(--muted);}
-.wordmark{font-weight:600;font-size:19px;letter-spacing:0.32em;text-indent:0.32em;}
+.wordmark{font-weight:600;font-size:19px;letter-spacing:0.22em;text-indent:0.22em;}
 .announce{
   background:var(--dark);color:var(--paper);text-align:center;
   font-size:11px;letter-spacing:0.14em;text-transform:uppercase;padding:9px 16px;
@@ -147,7 +147,7 @@ footer{border-top:1px solid var(--hairline);margin-top:40px;}
   max-width:1440px;margin:0 auto;padding:70px 40px 40px;
   display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;
 }
-.footer-brand .wordmark{font-size:16px;margin-bottom:16px;display:block;letter-spacing:0.32em;}
+.footer-brand .wordmark{font-size:16px;margin-bottom:16px;display:block;letter-spacing:0.22em;}
 .footer-brand p{font-size:13px;color:var(--muted);max-width:280px;}
 .footer-col .micro{display:block;margin-bottom:16px;color:var(--ink);}
 .footer-col a{display:block;font-size:13px;color:var(--muted);margin-bottom:10px;}
