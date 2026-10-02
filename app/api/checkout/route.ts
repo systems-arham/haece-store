@@ -25,7 +25,7 @@ async function shippingRates() {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { items: ReqItem[] };
+    const body = (await req.json()) as { items: ReqItem[]; offer_code?: string };
     const items = (body.items || []).filter((i) => i.sku && i.qty > 0);
     if (!items.length) {
       return NextResponse.json({ error: "Your bag is empty." }, { status: 400 });
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     // Load variants with live stock
     const skus = items.map((i) => i.sku);
     const vrows = await sql`
-      SELECT v.id, v.sku, v.size, p.name AS product_name, p.price_cents, p.image, p.slug,
+      SELECT v.id, v.sku, v.size, p.name AS product_name, p.price_cents, p.cost_cents, p.image, p.slug,
              (SELECT COUNT(*) FROM inventory_units u WHERE u.variant_id = v.id AND u.status = 'in_stock') AS stock
       FROM variants v
       JOIN products p ON p.id = v.product_id
@@ -57,14 +57,46 @@ export async function POST(req: NextRequest) {
     const subtotal = items.reduce((n, i) => n + Number(bySku.get(i.sku).price_cents) * i.qty, 0);
     const rates = await shippingRates();
     const shipping = subtotal >= rates.freeOver ? 0 : rates.flat;
-    const total = subtotal + shipping;
+
+    // Private offer code: validated server-side, applied as a Stripe coupon.
+    let offerCode: string | null = null;
+    let percentOff = 0;
+    let couponId: string | null = null;
+    const rawCode = (body.offer_code || "").trim().toUpperCase();
+    if (rawCode) {
+      const crows = (await sql`
+        SELECT id, code, percent_off, active, max_uses, used_count, stripe_coupon_id
+        FROM offer_codes WHERE code = ${rawCode} LIMIT 1
+      `) as any[];
+      const code = crows[0];
+      if (!code || !code.active) {
+        return NextResponse.json({ error: "This private code is not valid." }, { status: 400 });
+      }
+      if (code.max_uses != null && Number(code.used_count) >= Number(code.max_uses)) {
+        return NextResponse.json({ error: "This private code has reached its limit." }, { status: 400 });
+      }
+      offerCode = code.code;
+      percentOff = Number(code.percent_off);
+      couponId = code.stripe_coupon_id as string | null;
+      if (!couponId) {
+        const coupon = await stripe.coupons.create({
+          percent_off: percentOff,
+          duration: "once",
+          name: `HAECE private code ${offerCode}`,
+        });
+        couponId = coupon.id;
+        await sql`UPDATE offer_codes SET stripe_coupon_id = ${couponId} WHERE id = ${code.id}`;
+      }
+    }
+    const discount = offerCode ? Math.round((subtotal * percentOff) / 100) : 0;
+    const total = subtotal - discount + shipping;
 
     const seq = await sql`SELECT nextval('order_number_seq') AS n`;
     const on = orderNumber(Number((seq[0] as { n: string }).n));
 
     const orows = await sql`
-      INSERT INTO orders (order_number, status, subtotal_cents, shipping_cents, total_cents)
-      VALUES (${on}, 'pending_payment', ${subtotal}, ${shipping}, ${total})
+      INSERT INTO orders (order_number, status, subtotal_cents, shipping_cents, total_cents, offer_code, discount_cents)
+      VALUES (${on}, 'pending_payment', ${subtotal}, ${shipping}, ${total}, ${offerCode}, ${discount})
       RETURNING id
     `;
     const orderId = (orows[0] as { id: number }).id;
@@ -101,15 +133,16 @@ export async function POST(req: NextRequest) {
       throw e;
     }
 
-    // Order items reference the exact serialized units
+    // Order items reference the exact serialized units.
+    // unit_cost_cents is snapshotted now, so later cost edits never rewrite history.
     for (const c of claimed) {
       const v = bySku.get(c.sku);
+      const unitCost = v.cost_cents != null ? Number(v.cost_cents) : null;
       await sql`
-        INSERT INTO order_items (order_id, variant_id, unit_id, product_name, sku, size, price_cents)
-        VALUES (${orderId}, ${v.id}, ${c.unitId}, ${v.product_name}, ${v.sku}, ${v.size}, ${v.price_cents})
+        INSERT INTO order_items (order_id, variant_id, unit_id, product_name, sku, size, price_cents, unit_cost_cents)
+        VALUES (${orderId}, ${v.id}, ${c.unitId}, ${v.product_name}, ${v.sku}, ${v.size}, ${v.price_cents}, ${unitCost})
       `;
     }
-
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: items.map((i) => {
@@ -134,6 +167,7 @@ export async function POST(req: NextRequest) {
         },
       ],
       shipping_address_collection: { allowed_countries: ["US", "GB", "CA", "AU", "AE", "SA", "PK", "IN", "DE", "FR", "NL", "IT", "ES", "SE", "NO", "DK", "FI", "IE", "CH", "AT", "BE", "PT", "GR", "SG", "MY", "QA", "KW", "BH", "OM", "NZ", "JP"] },
+      discounts: couponId ? [{ coupon: couponId }] : [],
       success_url: `${baseUrl()}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl()}/bag`,
       metadata: { order_id: String(orderId), order_number: on },
@@ -141,6 +175,9 @@ export async function POST(req: NextRequest) {
     });
 
     await sql`UPDATE orders SET stripe_session_id = ${session.id} WHERE id = ${orderId}`;
+    if (offerCode) {
+      await sql`UPDATE offer_codes SET used_count = used_count + 1 WHERE code = ${offerCode}`;
+    }
 
     return NextResponse.json({ url: session.url });
   } catch (e) {

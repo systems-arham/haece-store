@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS products (
   description text,
   details jsonb DEFAULT '[]',
   price_cents int NOT NULL,
+  cost_cents int,
   image text,
   gallery jsonb DEFAULT '[]',
   visible boolean DEFAULT true,
@@ -74,6 +75,9 @@ CREATE TABLE IF NOT EXISTS orders (
   currency text DEFAULT 'usd',
   stripe_session_id text,
   shipping_address jsonb,
+  tracking_number text,
+  offer_code text,
+  discount_cents int NOT NULL DEFAULT 0,
   created_at timestamptz DEFAULT now(),
   paid_at timestamptz
 );
@@ -86,7 +90,8 @@ CREATE TABLE IF NOT EXISTS order_items (
   product_name text NOT NULL,
   sku text NOT NULL,
   size text NOT NULL,
-  price_cents int NOT NULL
+  price_cents int NOT NULL,
+  unit_cost_cents int
 );
 
 CREATE TABLE IF NOT EXISTS inventory_movements (
@@ -109,6 +114,18 @@ CREATE TABLE IF NOT EXISTS newsletter_subscribers (
   email text UNIQUE NOT NULL,
   created_at timestamptz DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS offer_codes (
+  id serial PRIMARY KEY,
+  code text UNIQUE NOT NULL,
+  percent_off int NOT NULL CHECK (percent_off >= 1 AND percent_off <= 90),
+  active boolean NOT NULL DEFAULT true,
+  max_uses int,
+  used_count int NOT NULL DEFAULT 0,
+  stripe_coupon_id text,
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_offer_codes_code ON offer_codes(code);
 
 CREATE SEQUENCE IF NOT EXISTS order_number_seq START 1;
 

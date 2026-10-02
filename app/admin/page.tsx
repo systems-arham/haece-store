@@ -5,8 +5,9 @@ import { usd } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-  const rev = await sql`SELECT COALESCE(SUM(total_cents),0) AS s FROM orders WHERE status='paid'`;
-  const paidCount = await sql`SELECT COUNT(*) AS c FROM orders WHERE status='paid'`;
+  const FULFILLED = ["paid", "shipped", "in_transit", "delivered"];
+  const rev = await sql`SELECT COALESCE(SUM(total_cents),0) AS s FROM orders WHERE status = ANY(${FULFILLED})`;
+  const paidCount = await sql`SELECT COUNT(*) AS c FROM orders WHERE status = ANY(${FULFILLED})`;
   const pendingCount = await sql`SELECT COUNT(*) AS c FROM orders WHERE status='pending_payment'`;
   const units = await sql`
     SELECT status, COUNT(*) AS c FROM inventory_units GROUP BY status
@@ -31,7 +32,7 @@ export default async function AdminDashboard() {
 
   const stats = [
     { k: "Revenue", v: usd(revenue) },
-    { k: "Paid orders", v: String(Number((paidCount[0] as { c: string }).c)) },
+    { k: "Fulfilled orders", v: String(Number((paidCount[0] as { c: string }).c)) },
     { k: "Awaiting payment", v: String(Number((pendingCount[0] as { c: string }).c)) },
     { k: "Units in stock", v: String(unitMap["in_stock"] || 0) },
   ];
@@ -65,7 +66,7 @@ export default async function AdminDashboard() {
                 <td><Link href={`/admin/orders/${o.order_number}`} style={{ textDecoration: "underline" }}>{o.order_number}</Link></td>
                 <td>{o.email || "-"}</td>
                 <td>{usd(Number(o.total_cents))}</td>
-                <td><span className={`badge ${o.status === "paid" ? "paid" : o.status === "pending_payment" ? "pending" : ""}`}>{o.status.replace("_", " ")}</span></td>
+                <td><span className={`badge ${o.status === "paid" ? "paid" : o.status === "pending_payment" ? "pending" : o.status === "shipped" || o.status === "in_transit" || o.status === "delivered" ? "in_stock" : "expired"}`}>{o.status.replace(/_/g, " ")}</span></td>
                 <td>{new Date(o.created_at).toLocaleDateString()}</td>
               </tr>
             ))}

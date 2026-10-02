@@ -364,3 +364,13 @@ table.data tr:hover td{background:rgba(0,0,0,0.015);}
   .admin-form-row{grid-template-columns:1fr;}
   table.data{display:block;overflow-x:auto;}
 }
+
+/* Print-friendly orders list */
+.print-sheet{max-width:900px;}
+.print-order{border-top:1px solid var(--hairline);padding:18px 0;break-inside:avoid;}
+@media print{
+  .admin-top,.no-print{display:none !important;}
+  .admin-body{padding:0;}
+  .print-sheet h1{font-size:22px;}
+  body{background:#fff;}
+}

@@ -9,14 +9,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Order number and email are required." }, { status: 400 });
   }
   const rows = await sql`
-    SELECT id, order_number, status, total_cents, created_at FROM orders
+    SELECT id, order_number, status, total_cents, created_at, tracking_number FROM orders
     WHERE order_number = ${String(order_number).toUpperCase()} AND lower(email) = lower(${String(email)})
     LIMIT 1
   `;
   if (!rows.length) {
     return NextResponse.json({ error: "No order found with those details." }, { status: 404 });
   }
-  const order = rows[0] as { id: number; order_number: string; status: string; total_cents: number; created_at: string };
+  const order = rows[0] as { id: number; order_number: string; status: string; total_cents: number; created_at: string; tracking_number: string | null };
   const items = await sql`
     SELECT product_name, size, sku FROM order_items WHERE order_id = ${order.id}
   `;

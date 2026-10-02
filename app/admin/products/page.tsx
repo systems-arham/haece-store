@@ -22,6 +22,17 @@ async function setPrice(formData: FormData) {
   revalidatePath("/admin/products");
 }
 
+async function setCost(formData: FormData) {
+  "use server";
+  const id = Number(formData.get("id"));
+  const raw = String(formData.get("cost") || "").trim();
+  if (!id) return;
+  const cents = raw === "" ? null : Math.round(Number(raw) * 100);
+  if (cents !== null && !(cents >= 0)) return;
+  await sql`UPDATE products SET cost_cents = ${cents} WHERE id = ${id}`;
+  revalidatePath("/admin/products");
+}
+
 async function uploadImage(formData: FormData) {
   "use server";
   const productId = Number(formData.get("product_id"));
@@ -57,7 +68,7 @@ type DbImage = { id: number; product_id: number; kind: string };
 
 export default async function AdminProducts() {
   const rows = (await sql`
-    SELECT p.id, p.name, p.slug, p.image, p.price_cents, p.visible, c.code AS collection, c.visible AS collection_visible,
+    SELECT p.id, p.name, p.slug, p.image, p.price_cents, p.cost_cents, p.visible, c.code AS collection, c.visible AS collection_visible,
            (SELECT COUNT(*) FROM inventory_units u JOIN variants v ON v.id = u.variant_id
             WHERE v.product_id = p.id AND u.status = 'in_stock') AS stock
     FROM products p
@@ -80,11 +91,11 @@ export default async function AdminProducts() {
   return (
     <>
       <h1>Products</h1>
-      <p className="admin-sub">Prices, visibility, and stock. Changes apply to the store immediately.</p>
+      <p className="admin-sub">Prices, production costs, visibility, and stock. Changes apply to the store immediately. Production cost feeds the profit report; it is never shown to clients.</p>
       <div className="panel">
         <table className="data">
           <thead>
-            <tr><th>Product</th><th>Collection</th><th>Price</th><th>In stock</th><th>Visible</th></tr>
+            <tr><th>Product</th><th>Collection</th><th>Price</th><th>Cost per piece</th><th>In stock</th><th>Visible</th></tr>
           </thead>
           <tbody>
             {rows.map((p) => (
@@ -108,6 +119,24 @@ export default async function AdminProducts() {
                     <button className="mini-btn">Set</button>
                   </form>
                   <span style={{ color: "var(--muted)", fontSize: 12 }}>{usd(Number(p.price_cents))}</span>
+                </td>
+                <td>
+                  <form action={setCost} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <input
+                      name="cost"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="Not set"
+                      defaultValue={p.cost_cents != null ? Math.round(Number(p.cost_cents) / 100) : ""}
+                      style={{ width: 80, padding: "8px 10px", border: "1px solid var(--hairline)", fontSize: 13 }}
+                    />
+                    <button className="mini-btn">Set</button>
+                  </form>
+                  <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                    {p.cost_cents != null ? usd(Number(p.cost_cents)) : "Not set"}
+                  </span>
                 </td>
                 <td>{p.stock}</td>
                 <td>
