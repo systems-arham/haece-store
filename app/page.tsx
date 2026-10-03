@@ -55,8 +55,10 @@ async function founderGallery(): Promise<string[]> {
     `) as any[])
     : [];
   if (irows.length) {
-    const main = irows.find((r) => r.kind === "main");
-    const gal = irows.filter((r) => r.kind === "gallery");
+    // The gallery SQL refresh inserts only 'gallery' rows (no 'main'),
+    // so fall back to the first row instead of crashing on main.id.
+    const main = irows.find((r) => r.kind === "main") ?? irows[0];
+    const gal = irows.filter((r) => r.kind === "gallery" && r.id !== main.id);
     return [`/api/product-image/${main.id}`, ...gal.map((r) => `/api/product-image/${r.id}`)];
   }
   const g = p.gallery as string[] | null;
